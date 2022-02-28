@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Hash;
 
 use App\Models\Employee;
 use App\Models\User;
+use App\Models\Company;
 
 class EmployeeController extends Controller
 {
@@ -19,9 +20,9 @@ class EmployeeController extends Controller
     {
         //fetch all employee records
 
-        $employees = Employee::all();
+        $employees = Employee::with('company_data')->get();
 
-        return view('employee.index')->with('employees'=>$employees);
+        return view('employee.index')->with('employees',$employees);
 
     }
 
@@ -34,7 +35,9 @@ class EmployeeController extends Controller
     {
         //function to return the display form for creating employees
 
-        return view('employee.create');
+        $company = Company::all();
+
+        return view('employee.create')->with('company',$company);
     }
 
     /**
@@ -56,46 +59,44 @@ class EmployeeController extends Controller
                     'company'=>'required',
                 ]);
 
-        if ($validdate->fails()) 
-        {
-            // code...
-            return back()->with('error','Missing Data');
-        } 
-        else 
-        {
-
+        // if ($request->input('password') != $request->input('retype')) 
+        // {
+        //    return back()->with('error','Password Mismatch Error');
+        // }
+       
         //Create Employee 
             $employee = new Employee;
 
-            try 
-            {
-                $employee->first_name = $request->input('first_name');
-                $empoyee->last_name = $request->input('last_name');
-                $employee->email = $request->input('email');
-                $employee->phone = $request->input('phone');
-                $employee->company = $request->input('company');
+        try 
+        {
+            $employee->first_name = $request->input('first_name');
+            $employee->last_name = $request->input('last_name');
+            $employee->email = $request->input('email');
+            $employee->phone = $request->input('phone');
+            $employee->company = $request->input('company');
 
-                //Create Employee Account with role_id 2
-                $user = new User;
+            $employee->save();
 
-                $user->name = $request->input('first_name');
-                $user->email = $request->input('email');
-                $user->password = Hash::make($request->input('password'));
-                $user->role_id = 2;
+            //Create Employee User Account with role_id 2
+            $user = new User;
 
-                $employee->save();
-                $user->save();
+            $user->name = $request->input('first_name');
+            $user->email = $request->input('email');
+            $user->password = Hash::make($request->input('password'));
+            $user->role_id = 2;
+            $user->employee_id = $employee->id;
 
-                return redirect('employee.index')->with('success','Employee Record Created');
+            
+            $user->save();
+
+            return redirect()->route('employee.index')->with('success','Employee Record Created');
 
 
-            } 
-            catch (Exception $e) 
-            {
-                return redirect('employee.index')->with('error','Employee Record Not Created');
-            }
-    }
-
+        } 
+        catch (Exception $e) 
+        {
+            return redirect()->route('employee.index')->with('error','Employee Record Not Created');
+        }
 
     }
 
@@ -109,9 +110,9 @@ class EmployeeController extends Controller
     {
         //fetch the record with only the requested ID for reading purposes
 
-        $employee = Employee::findOrFail($id);
+        $employee = Employee::where('id',$id)->get();
 
-        return view('employee.show')->with('employee'=>$employee);
+        return view('employee.show')->with('employee',$employee);
     }
 
     /**
@@ -124,9 +125,11 @@ class EmployeeController extends Controller
     {
         //fetch the record with only the requested ID for update purposes
 
-        $employee = Employee::findOrFail($id);
+        $employee = Employee::where('id',$id)->with('company_data')->get();
+        $company = Company::all();
 
-        return view('employee.edit')->with('employee'=>$employee);
+        return view('employee.edit')->with('employee',$employee)
+                                    ->with('company',$company);
     }
 
     /**
@@ -145,37 +148,36 @@ class EmployeeController extends Controller
                                             'last_name'=>'required',
                                             'email'=>'required',
                                             'phone'=>'required',
-                                            'company'=>'required',
-                                        ]);
-        if($validate->fails())
+                                            'company'=>'required',]);
+  
+        $employee = Employee::findOrFail($id);
+
+        try 
         {
-            return back()->with('error','Error');
 
-        }
-        else
+            Employee::where('id',$id)->update([
+                                                'first_name'=>$request->input('first_name'),
+                                                'last_name'=>$request->input('last_name'),
+                                                'email'=>$request->input('email'),
+                                                'phone'=> $request->input('phone'),
+                                                'company'=>$request->input('company'),
+                                            ]);
+
+            //find employee email, name and password in user table and update accordingly
+            $user = User::where('employee_id',$id)
+                        ->update([
+                                  'email'=>$request->input('email'),
+                                  'name'=> $request->input('first_name'),
+                                ]);
+
+            return redirect()->route('employee.index')->with('success','Record Updated');
+
+        } 
+        catch (Exception $e) 
         {
-            $employee = Employee::findOrFail($id);
-
-            try 
-            {
-                $employee->first_name = $request->input('first_name');
-                $empoyee->last_name = $request->input('last_name');
-                $employee->email = $request->input('email');
-                $employee->phone = $request->input('phone');
-                $employee->company = $request->input('company');
-
-                //find employee email in user table and update accordingly
-                $user = User::where('employee_id'=>$id)->update(['email'=>$request->input('email')]);
-
-                return redirect('employee.index')->with('success'=>'Record Updated');
-
-            } 
-            catch (Exception $e) 
-            {
-                return redirect('employee.index')->with('success'=>'Record Not Updated');
-            }
+            return redirect()->route('employee.index')->with('error','Record Not Updated');
         }
-
+        
     }
 
     /**
@@ -198,12 +200,12 @@ class EmployeeController extends Controller
 
             $user = User::where('employee_id',$id)->delete();
 
-            return redirect('employee.index')->with('success','Record Deleted');
+            return redirect()->route('employee.index')->with('success','Record Deleted');
 
         } 
         catch (Exception $e) 
         {
-            return redirect('employee.index')->with('error','Record Not Deleted');
+            return redirect()->route('employee.index')->with('error','Record Not Deleted');
         }
     }
 }

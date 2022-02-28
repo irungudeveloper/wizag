@@ -2,6 +2,11 @@
 
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\LoginController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\EmployeeController;
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -13,6 +18,19 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
+Route::get('/', function () 
+{
+    return view('home');
+});
+
+
+Route::post('login',[LoginController::class,'login'])->name('login');
+
+Route::group(['middleware' => ['auth']], function()
+{
+
+Route::get('dashboard',[DashboardController::class,'index'])->name('dashboard.index');
+Route::resource('company',CompanyController::class);
+Route::resource('employee',EmployeeController::class);
+
 });
